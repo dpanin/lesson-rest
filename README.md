@@ -6,7 +6,7 @@ Simple REST service which uses Stepik REST API to get id of steps.
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
-### Prerequisites
+### Prerequisites & installing
 
 * Python 3.5+
 * aiohttp
@@ -17,7 +17,7 @@ Install required packages using pip:
 pip install -r requirement.txt
 ```
 
-### Installing
+### Running
 
 To run this app on your local machine for testing purposes just run app.py file:
 
