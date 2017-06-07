@@ -26,11 +26,14 @@ async def check_step(step_id, update_date):
         cached_step = await steps_cache.get(step_id)
         # If data wasn't updated before, then return from cache
         if cached_step[0] >= update_date:
+            if cached_step[1] == 'Forbidden':
+                raise HTTPForbidden
             return cached_step[1]
     # If cache doesn't exist or not valid, then make request to API
     async with aiohttp.request(
             'GET', 'https://stepik.org/api/steps/{}'.format(step_id)) as resp:
         if resp.status == 403:
+            await steps_cache.set(step_id, (update_date, 'Forbidden'))
             raise HTTPForbidden
         json_response = await resp.json()
         if json_response['steps'][0]['block']['name'] == 'text':
