@@ -7,7 +7,7 @@ from aiocache.serializers import PickleSerializer
 from aiohttp import web
 from lru_plugin import LRUPlugin
 
-steps_cache = SimpleMemoryCache(serializer=PickleSerializer())
+steps_cache = SimpleMemoryCache(serializer=PickleSerializer(), plugins=[LRUPlugin(max_keys=10000)],)
 
 
 class HTTPForbidden(Exception):
@@ -47,7 +47,7 @@ async def check_step(step_id, update_date):
     ttl=120,
     key_from_attr="lesson_id",
     cache=SimpleMemoryCache,
-    plugins=[LRUPlugin(max_keys=100)],
+    plugins=[LRUPlugin(max_keys=1000)],
     serializer=PickleSerializer())
 async def get_lesson(lesson_id):
     """Make request to Stepik REST API and process a response.
