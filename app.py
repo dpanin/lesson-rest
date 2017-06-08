@@ -7,41 +7,46 @@ from aiocache.serializers import PickleSerializer
 from aiohttp import web
 from lru_plugin import LRUPlugin
 
-steps_cache = SimpleMemoryCache(serializer=PickleSerializer(), plugins=[LRUPlugin(max_keys=10000)],)
+steps_cache = SimpleMemoryCache(serializer=PickleSerializer(), plugins=[LRUPlugin(max_keys=1000)])
 
 
 class HTTPForbidden(Exception):
     pass
 
 
-async def check_step(step_id, update_date):
+async def get_steps(lesson_id, lsteps, update_date):
     """Works with the cache, where steps are stored.
 
     Return True if step is theoretical and False if not. If access if forbidden, raise HTTPForbidden error.
 
-    :param step_id: str step id
+    :param lesson_id: str lesson id
+    :param lsteps: list of lesson's steps
     :param update_date: int timestamp when lesson was updated
     """
-    if await steps_cache.exists(step_id):
-        cached_step = await steps_cache.get(step_id)
+    result = []
+    if await steps_cache.exists(lesson_id):
+        cached_steps = await steps_cache.get(lesson_id)
         # If data wasn't updated before, then return from cache
-        if cached_step[0] >= update_date:
-            if cached_step[1] == 'Forbidden':
+        if cached_steps[0] >= update_date:
+            if cached_steps[1] == 'Forbidden':
                 raise HTTPForbidden
-            return cached_step[1]
-    # If cache doesn't exist or not valid, then make request to API
-    async with aiohttp.request(
-            'GET', 'https://stepik.org/api/steps/{}'.format(step_id)) as resp:
-        if resp.status == 403:
-            await steps_cache.set(step_id, (update_date, 'Forbidden'))
-            raise HTTPForbidden
-        json_response = await resp.json()
-        if json_response['steps'][0]['block']['name'] == 'text':
-            await steps_cache.set(step_id, (update_date, True))
-            return True
-        else:
-            await steps_cache.set(step_id, (update_date, False))
-            return False
+            return cached_steps[1]
+    # If cache doesn't exist or not valid, then update it
+    for step_id in lsteps:
+        async with aiohttp.request(
+                'GET', 'https://stepik.org/api/steps/{}'.format(step_id)) as resp:
+            # Raise error if can't get access to step
+            if resp.status == 403:
+                await steps_cache.set(lesson_id, (None, 'Forbidden'))
+                raise HTTPForbidden
+            json_response = await resp.json()
+            # Check if step is theoretical
+            if json_response['steps'][0]['block']['name'] == 'text':
+                result.append(step_id)
+            else:
+                pass
+    await steps_cache.set(lesson_id, (update_date, result))
+    return result
 
 
 # Caches Stepik /api/lessons response for 2 minutes and use MemoryCache
@@ -62,15 +67,13 @@ async def get_lesson(lesson_id):
         if not resp.status == 200:
             return resp.status, None
         json_response = await resp.json()
-    results = []
+    # Convert time string to timestamp
     update_date = int(
         mktime(datetime.strptime(json_response['lessons'][0]['update_date'], "%Y-%m-%dT%H:%M:%SZ").timetuple()))
-    for step_id in json_response['lessons'][0]['steps']:
-        try:
-            if await check_step(step_id, update_date):
-                results.append(step_id)
-        except HTTPForbidden:
-            return 403, []
+    try:
+        results = await get_steps(lesson_id, json_response['lessons'][0]['steps'], update_date)
+    except HTTPForbidden:
+        return 403, []
     return resp.status, results
 
 
