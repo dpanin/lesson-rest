@@ -99,3 +99,10 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# VSCode
+<<<<<<< HEAD
+.vscode/
+=======
+.vdcode/
+>>>>>>> 461a391af8c14c0e86d8f03b037f6d057c913e41
